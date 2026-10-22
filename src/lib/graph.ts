@@ -17,7 +17,9 @@ export function addNode(g: GraphDoc, kind: CatalogKind, at: Point): { graph: Gra
 		kind: kind.slug,
 		x: Math.round(at.x),
 		y: Math.round(at.y),
-		config: structuredClone(kind.default_config ?? {})
+		// A JSON copy, not structuredClone: the catalogue may be a reactive proxy (Svelte $state),
+		// which structuredClone refuses — and a refused clone is a tap that silently does nothing.
+		config: JSON.parse(JSON.stringify(kind.default_config ?? {}))
 	};
 	return { graph: { ...g, nodes: [...g.nodes, node], next_id: id + 1 }, id };
 }

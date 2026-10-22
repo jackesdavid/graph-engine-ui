@@ -24,7 +24,9 @@ describe('FlowEditor', () => {
 	it('adds the tapped kind to the graph and shows its settings when the node is tapped', async () => {
 		let graph: GraphDoc = { nodes: [], edges: [] };
 		const changes: GraphDoc[] = [];
-		render(FlowEditor, { props: { graph, catalog, onchange: (g: GraphDoc) => changes.push(g) } });
+		// Reactive, like an app that loaded the catalogue into $state.
+		const live = $state(catalog);
+		render(FlowEditor, { props: { graph, catalog: live, onchange: (g: GraphDoc) => changes.push(g) } });
 
 		await fireEvent.click(screen.getAllByRole('button', { name: 'Add node' })[0]);
 		await fireEvent.click(screen.getByRole('button', { name: /Reply to the form/ }));
