@@ -366,6 +366,9 @@
 		};
 	}
 
+	// A finger needs a bigger target than the 12px dot it sees (28px across: rows are 24px apart).
+	const HIT_R = 14;
+
 	const cursorClass = $derived(panning ? 'grabbing' : tool === 'link' || tool === 'cut' ? 'crosshair' : 'grab');
 </script>
 
@@ -465,15 +468,15 @@
 
 				{#each execIn(l.p) as p (p.name)}
 					{@const wired = !!wiredInto(graph, n.id, p.name)}
-					<circle cx="0" cy={HEAD_H / 2} r={PORT_R} class="geui-port exec" class:filled={wired} onpointerdown={(e) => inTap(e, n, p)} role="presentation" />
+					<circle cx="0" cy={HEAD_H / 2} r={HIT_R} class="geui-hit" onpointerdown={(e) => inTap(e, n, p)} role="presentation" />
+					<circle cx="0" cy={HEAD_H / 2} r={PORT_R} class="geui-port exec geui-inert" class:filled={wired} />
 				{/each}
 				{#each execOut(l.p) as p, i (p.name)}
 					{@const multi = execOut(l.p).length > 1}
 					{@const y = multi ? HEAD_H + i * ROW_H + ROW_H / 2 : HEAD_H / 2}
 					{@const isP = pending?.node === n.id && pending?.port === p.name}
-					<circle cx={l.w} cy={y} r={isP ? PORT_R + 1 : PORT_R} class="geui-port exec" class:filled={isP} onpointerdown={(e) => outTap(e, n, p.name)} role="presentation">
-						<title>{labelOfPort(n, p)}</title>
-					</circle>
+					<circle cx={l.w} cy={y} r={HIT_R} class="geui-hit" onpointerdown={(e) => outTap(e, n, p.name)} role="presentation"><title>{labelOfPort(n, p)}</title></circle>
+					<circle cx={l.w} cy={y} r={isP ? PORT_R + 1 : PORT_R} class="geui-port exec geui-inert" class:filled={isP} />
 					{#if multi}
 						<text x={l.w - 12} y={y + 4} text-anchor="end" class="geui-port-label geui-inert">{labelOfPort(n, p)}</text>
 					{/if}
@@ -483,17 +486,14 @@
 					{@const wired = !!wiredInto(graph, n.id, p.name)}
 					{@const missing = l.missing.some((m) => m.name === p.name)}
 					{@const literal = !wired && n.config[p.name] !== undefined && n.config[p.name] !== ''}
+					<circle cx="0" cy={y} r={HIT_R} class="geui-hit" onpointerdown={(e) => inTap(e, n, p)} role="presentation"><title>{labelOfPort(n, p)} · {p.type}</title></circle>
 					<circle
 						cx="0"
 						cy={y}
 						r={PORT_R}
-						class="geui-port"
+						class="geui-port geui-inert"
 						style="fill: {wired ? portColor(p.type) : 'var(--geui-port-empty, var(--background, #fff))'}; stroke: {missing ? 'var(--destructive, #e11d48)' : portColor(p.type)}"
-						onpointerdown={(e) => inTap(e, n, p)}
-						role="presentation"
-					>
-						<title>{labelOfPort(n, p)} · {p.type}</title>
-					</circle>
+					/>
 					{#if literal}
 						<circle cx="0" cy={y} r={PORT_R * 0.45} fill={portColor(p.type)} class="geui-inert" />
 					{/if}
@@ -503,17 +503,14 @@
 					{@const offset = execOut(l.p).length > 1 ? execOut(l.p).length : 0}
 					{@const y = HEAD_H + (i + offset) * ROW_H + ROW_H / 2}
 					{@const isP = pending?.node === n.id && pending?.port === p.name}
+					<circle cx={l.w} cy={y} r={HIT_R} class="geui-hit" onpointerdown={(e) => outTap(e, n, p.name)} role="presentation"><title>{labelOfPort(n, p)} · {p.type}</title></circle>
 					<circle
 						cx={l.w}
 						cy={y}
 						r={isP ? PORT_R + 1 : PORT_R}
-						class="geui-port"
+						class="geui-port geui-inert"
 						style="fill: {isP ? portColor(p.type) : 'var(--geui-port-empty, var(--background, #fff))'}; stroke: {portColor(p.type)}"
-						onpointerdown={(e) => outTap(e, n, p.name)}
-						role="presentation"
-					>
-						<title>{labelOfPort(n, p)} · {p.type}</title>
-					</circle>
+					/>
 					<text x={l.w - 12} y={y + 4} text-anchor="end" class="geui-port-label geui-inert">{labelOfPort(n, p)}</text>
 				{/each}
 			</g>
@@ -606,6 +603,9 @@
 	}
 	.geui-port {
 		stroke-width: 2;
+	}
+	.geui-hit {
+		fill: transparent;
 		cursor: pointer;
 	}
 	.geui-port.exec {

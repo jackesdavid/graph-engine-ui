@@ -45,6 +45,8 @@
 	let tool = $state<Tool>('move');
 	let selected = $state(new Set<number>());
 	let panel = $state<'props' | 'add'>('props');
+	// On a phone the side panel is a drawer over the canvas, opened from the toolbar.
+	let sheet = $state(false);
 	let notice = $state<string | null>(null);
 	let canvas: Canvas | undefined = $state();
 	let resolved = $state<Record<string, ResolvedPorts>>({});
@@ -96,6 +98,12 @@
 		graph = r.graph;
 		selected = new Set([r.id]);
 		panel = 'props';
+		sheet = false; // on a phone: close the drawer so the new node is visible
+	}
+
+	function open(p: 'props' | 'add') {
+		panel = p;
+		sheet = true;
 	}
 
 	function setConfig(id: number, config: Record<string, unknown>) {
@@ -148,6 +156,16 @@
 		/>
 		<div class="geui-tools" role="toolbar">
 			{#if !readonly}
+				<button type="button" class="geui-add" title={messages.addNode} aria-label={messages.addNode} onclick={() => open('add')}>
+					<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+					<span>{messages.addNode}</span>
+				</button>
+			{/if}
+			<button type="button" title={messages.inspector} aria-label={messages.inspector} disabled={!primary} onclick={() => open('props')}>
+				<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6" /></svg>
+			</button>
+			<span class="sep"></span>
+			{#if !readonly}
 				{#each tools as t (t.id)}
 					<button type="button" class:on={tool === t.id} aria-pressed={tool === t.id} title={t.label()} onclick={() => (tool = t.id)}>
 						<svg viewBox="0 0 24 24" aria-hidden="true"><path d={t.icon} /></svg>
@@ -165,7 +183,10 @@
 			<div class="geui-notice" role="status">{notice}</div>
 		{/if}
 	</div>
-	<aside class="geui-side">
+	<aside class="geui-side" class:open={sheet}>
+		<button type="button" class="geui-close" onclick={() => (sheet = false)} aria-label={messages.close}>
+			<span class="grab"></span>
+		</button>
 		{#if !readonly}
 			<div class="geui-tabs" role="tablist">
 				<button type="button" role="tab" aria-selected={panel === 'props'} class:on={panel === 'props'} onclick={() => (panel = 'props')}>{messages.inspector}</button>
@@ -206,15 +227,56 @@
 		background: var(--background, #fff);
 		color: var(--foreground, #18181b);
 	}
+	.geui {
+		position: relative;
+	}
+	.geui-close {
+		display: none;
+	}
 	@media (max-width: 820px) {
 		.geui {
 			grid-template-columns: 1fr;
-			grid-template-rows: minmax(360px, 1fr) auto;
 		}
+		/* A drawer from the bottom, over the canvas, opened from the toolbar. */
 		.geui-side {
+			position: absolute;
+			left: 0;
+			right: 0;
+			bottom: 0;
+			height: min(72%, 600px);
+			z-index: 5;
+			background: var(--background, #fff);
 			border-left: 0 !important;
 			border-top: 1px solid var(--border, #e4e4e7);
-			max-height: 45vh;
+			border-radius: 16px 16px 0 0;
+			box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.12);
+			transform: translateY(105%);
+			transition: transform 0.2s ease;
+		}
+		.geui-side.open {
+			transform: none;
+		}
+		.geui-close {
+			display: flex;
+			justify-content: center;
+			align-items: center;
+			min-height: 32px;
+			border: 0;
+			background: transparent;
+			cursor: pointer;
+		}
+		.grab {
+			width: 44px;
+			height: 5px;
+			border-radius: 999px;
+			background: var(--border, #d4d4d8);
+		}
+		/* Icons only: the toolbar has to fit a phone. */
+		.geui-tools span {
+			display: none;
+		}
+		.geui-tools button {
+			padding: 0;
 		}
 	}
 	.geui-stage {
@@ -250,6 +312,14 @@
 		font: inherit;
 		font-size: 0.85rem;
 		cursor: pointer;
+	}
+	.geui-tools button:disabled {
+		opacity: 0.4;
+		cursor: default;
+	}
+	.geui-tools .geui-add {
+		background: var(--primary, #d6336c);
+		color: var(--primary-foreground, #fff);
 	}
 	.geui-tools button.on {
 		background: var(--primary, #d6336c);

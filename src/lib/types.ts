@@ -106,6 +106,7 @@ export type Messages = {
 	inputs: string;
 	yes: string;
 	no: string;
+	close: string;
 };
 
 export const ENGLISH: Messages = {
@@ -132,7 +133,8 @@ export const ENGLISH: Messages = {
 	settings: 'Settings',
 	inputs: 'Inputs',
 	yes: 'Yes',
-	no: 'No'
+	no: 'No',
+	close: 'Close'
 };
 
 export type Tool = 'move' | 'pan' | 'link' | 'cut';
