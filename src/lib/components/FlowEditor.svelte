@@ -99,6 +99,13 @@
 		selected = new Set([r.id]);
 		panel = 'props';
 		sheet = false; // on a phone: close the drawer so the new node is visible
+		say(`${k.label} ${messages.added}`);
+	}
+
+	function tapped(id: number) {
+		selected = new Set([id]);
+		panel = 'props';
+		sheet = true; // a drawer on a phone; on a wide screen the panel is always there
 	}
 
 	function open(p: 'props' | 'add') {
@@ -153,6 +160,7 @@
 			{readonly}
 			{messages}
 			onnotice={say}
+			ontapnode={tapped}
 		/>
 		<div class="geui-tools" role="toolbar">
 			{#if !readonly}

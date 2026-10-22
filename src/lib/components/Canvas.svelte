@@ -36,6 +36,8 @@
 		readonly?: boolean;
 		messages: Messages;
 		onnotice?: (message: string) => void;
+		/** A node was tapped (pressed and released without moving): show its settings. */
+		ontapnode?: (id: number) => void;
 	};
 
 	let {
@@ -49,7 +51,8 @@
 		live = {},
 		readonly = false,
 		messages,
-		onnotice = () => {}
+		onnotice = () => {},
+		ontapnode = () => {}
 	}: Props = $props();
 
 	let svg: SVGSVGElement | undefined = $state();
@@ -66,6 +69,8 @@
 	let pending = $state<{ node: number; port: string } | null>(null);
 	let cursor = $state<Point>({ x: 0, y: 0 });
 	let hoverEdge = $state<string | null>(null);
+	// A press on a node that ends where it began, without a second finger, is a tap.
+	let tap: { id: number; x: number; y: number } | null = null;
 
 	const byId = $derived(new Map(graph.nodes.map((n) => [n.id, n])));
 	const running = $derived(new Set(live.running ?? []));
@@ -153,15 +158,16 @@
 	function nodeDown(e: PointerEvent, n: GraphNode) {
 		e.stopPropagation();
 		selectNode(e, n.id);
+		tap = { id: n.id, x: e.clientX, y: e.clientY };
 		pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
 		if (pointers.size >= 2) return;
 		if (tool === 'pan' || readonly) {
 			panning = { sx: e.clientX, sy: e.clientY, view };
-			svg?.setPointerCapture(e.pointerId);
+			svg?.setPointerCapture?.(e.pointerId);
 			return;
 		}
 		if (tool !== 'move') return; // link/cut: the body is inert so port taps are precise
-		svg?.setPointerCapture(e.pointerId);
+		svg?.setPointerCapture?.(e.pointerId);
 		const w = world(e);
 		const carried = selected.has(n.id) && selected.size > 1 ? [...selected].filter((id) => id !== n.id) : [];
 		drag = { id: n.id, off: { x: w.x - n.x, y: w.y - n.y }, carried };
@@ -187,7 +193,7 @@
 			selected = new Set();
 			panning = { sx: e.clientX, sy: e.clientY, view };
 		}
-		svg?.setPointerCapture(e.pointerId);
+		svg?.setPointerCapture?.(e.pointerId);
 		e.preventDefault();
 	}
 
@@ -209,6 +215,7 @@
 			panning = null;
 			viaDrag = null;
 			marquee = null;
+			tap = null;
 			const [a, b] = [...pointers.values()];
 			const d = Math.hypot(a.x - b.x, a.y - b.y) || 1;
 			const r = svg!.getBoundingClientRect();
@@ -258,6 +265,8 @@
 	}
 
 	function canvasUp(e: PointerEvent) {
+		if (tap && !pinching && pointers.size <= 1 && Math.hypot(e.clientX - tap.x, e.clientY - tap.y) < 8) ontapnode(tap.id);
+		tap = null;
 		pointers.delete(e.pointerId);
 		svg?.releasePointerCapture?.(e.pointerId);
 		if (pointers.size < 2) pinch = null;
@@ -330,7 +339,7 @@
 			viaDrag = { key, idx: near };
 		}
 		pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-		svg?.setPointerCapture(e.pointerId);
+		svg?.setPointerCapture?.(e.pointerId);
 	}
 
 	function viaDown(e: PointerEvent, key: string, idx: number) {
@@ -346,7 +355,7 @@
 		}
 		viaDrag = { key, idx };
 		pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-		svg?.setPointerCapture(e.pointerId);
+		svg?.setPointerCapture?.(e.pointerId);
 	}
 
 	function edgeEnds(ed: GraphEdge): { a: Point; b: Point; color: string; colorTo: string } | null {

@@ -107,6 +107,8 @@ export type Messages = {
 	yes: string;
 	no: string;
 	close: string;
+	/** "<node> added". */
+	added: string;
 };
 
 export const ENGLISH: Messages = {
@@ -134,7 +136,8 @@ export const ENGLISH: Messages = {
 	inputs: 'Inputs',
 	yes: 'Yes',
 	no: 'No',
-	close: 'Close'
+	close: 'Close',
+	added: 'added'
 };
 
 export type Tool = 'move' | 'pan' | 'link' | 'cut';
