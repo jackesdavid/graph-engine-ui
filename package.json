@@ -2,7 +2,7 @@
 	"name": "graph-engine-ui",
 	"description": "Touch-first, themeable Svelte editor for graph-engine flows.",
 	"license": "MIT",
-	"version": "0.1.3",
+	"version": "0.2.0",
 	"scripts": {
 		"dev": "vite dev",
 		"build": "vite build && pnpm run prepack",

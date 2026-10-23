@@ -1,7 +1,7 @@
 // The editor as a person uses it: tap a kind in the palette, a node appears; tap the node, its
 // settings open. Runs in jsdom (no layout), which is enough for the wiring between the pieces.
-import { describe, expect, it } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/svelte';
+import { afterEach, describe, expect, it } from 'vitest';
+import { cleanup, fireEvent, render, screen } from '@testing-library/svelte';
 import { flushSync } from 'svelte';
 import FlowEditor from './FlowEditor.svelte';
 import type { Catalog, GraphDoc } from '../types.js';
@@ -21,6 +21,8 @@ const catalog: Catalog = {
 };
 
 describe('FlowEditor', () => {
+	afterEach(cleanup);
+
 	it('adds the tapped kind to the graph and shows its settings when the node is tapped', async () => {
 		let graph: GraphDoc = { nodes: [], edges: [] };
 		const changes: GraphDoc[] = [];
@@ -42,5 +44,58 @@ describe('FlowEditor', () => {
 		flushSync();
 		expect(screen.getByLabelText(/Status/)).toBeTruthy();
 		expect(document.querySelector('.geui-side.open')).not.toBeNull();
+	});
+
+	it('shows the settings a configured node really has: a second dropdown, labelled and grouped', async () => {
+		const trigger: Catalog = {
+			kinds: [
+				{
+					slug: 'on_event',
+					label: 'When Event',
+					category: 'Triggers',
+					inputs: [],
+					outputs: [{ name: 'exec_out', type: 'exec', required: false }],
+					default_config: { event: '' },
+					dynamic: true,
+					fields: [{ key: 'event', label: 'Event', required: true, kind: 'choice', options: [] }]
+				}
+			]
+		};
+		const graph: GraphDoc = { nodes: [{ id: 1, kind: 'on_event', x: 0, y: 0, config: { event: 'form.submitted' } }], edges: [] };
+		const resolvePorts = async () => ({
+			inputs: [],
+			outputs: [{ name: 'exec_out', type: 'exec', required: false }],
+			fields: [
+				{
+					key: 'event',
+					label: 'Event',
+					required: true,
+					kind: 'choice' as const,
+					options: ['form.submitted', 'payment.registered'],
+					choices: [
+						{ value: 'form.submitted', label: 'Form sent', group: 'Forms' },
+						{ value: 'payment.registered', label: 'Payment registered', group: 'Finance' }
+					]
+				},
+				{ key: 'form', label: 'Form', required: true, kind: 'choice' as const, options: ['pay'], choices: [{ value: 'pay', label: 'Pay a bill' }] }
+			]
+		});
+		render(FlowEditor, { props: { graph, catalog: trigger, resolvePorts } });
+		await new Promise((r) => setTimeout(r, 0));
+		flushSync();
+
+		const body = document.querySelector('.geui-body');
+		await fireEvent.pointerDown(body!, { pointerId: 1, clientX: 10, clientY: 10 });
+		await fireEvent.pointerUp(document.querySelector('.geui-canvas')!, { pointerId: 1, clientX: 11, clientY: 10 });
+		flushSync();
+
+		const event = screen.getByLabelText(/Event/) as HTMLSelectElement;
+		expect(event.value).toBe('form.submitted');
+		expect([...event.querySelectorAll('optgroup')].map((g) => g.label)).toEqual(['Forms', 'Finance']);
+		expect(screen.getByRole('option', { name: 'Form sent' })).toBeTruthy();
+		const form = screen.getByLabelText(/Form \*/) as HTMLSelectElement;
+		// Nothing chosen yet: an empty entry rather than silently showing the first form.
+		expect(form.value).toBe('');
+		expect(screen.getByRole('option', { name: 'Pay a bill' })).toBeTruthy();
 	});
 });

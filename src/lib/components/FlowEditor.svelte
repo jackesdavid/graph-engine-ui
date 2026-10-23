@@ -74,6 +74,12 @@
 		if (!k) return { inputs: [], outputs: [] };
 		return (k.dynamic && resolved[cacheKey(n)]) || { inputs: k.inputs, outputs: k.outputs };
 	}
+	/** The node's kind, with the settings its configuration really has (a second dropdown). */
+	function kindOf(n: GraphNode): CatalogKind | undefined {
+		const k = kinds.get(n.kind);
+		const fields = k?.dynamic ? resolved[cacheKey(n)]?.fields : undefined;
+		return k && fields ? { ...k, fields } : k;
+	}
 	const title = (n: GraphNode) => titleOf?.(n, kinds.get(n.kind)) ?? kinds.get(n.kind)?.label ?? n.kind;
 	const color = (n: GraphNode) => categoryColor(kinds.get(n.kind)?.category ?? '', categoryColors);
 
@@ -208,7 +214,7 @@
 				<Inspector
 					{graph}
 					node={primary}
-					kind={primary ? kinds.get(primary.kind) : undefined}
+					kind={primary ? kindOf(primary) : undefined}
 					ports={primary ? portsOf(primary) : undefined}
 					title={primary ? title(primary) : ''}
 					{messages}

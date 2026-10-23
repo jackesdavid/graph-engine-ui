@@ -1,7 +1,7 @@
 <script lang="ts">
 	// One configuration value, drawn from its declared field kind (or guessed from its value when
 	// the node declares no fields). `rows` is a small table: one line per row, one cell per column.
-	import type { CatalogField, Messages } from '../types.js';
+	import type { CatalogChoice, CatalogField, Messages } from '../types.js';
 	import FieldInput from './FieldInput.svelte';
 
 	type Props = {
@@ -24,6 +24,19 @@
 		for (const f of field.fields ?? []) blank[f.key] = f.kind === 'bool' ? false : f.kind === 'choice' ? (f.options?.[0] ?? '') : '';
 		onchange([...rows, blank]);
 	}
+	// Options grouped under their headings, in the order the groups first appear.
+	const groups = $derived.by(() => {
+		const out: { group: string; items: CatalogChoice[] }[] = [];
+		const all: CatalogChoice[] = field.choices ?? (field.options ?? []).map((o) => ({ value: o, label: o }));
+		for (const c of all) {
+			const g = c.group ?? '';
+			const at = out.find((x) => x.group === g);
+			if (at) at.items.push(c);
+			else out.push({ group: g, items: [c] });
+		}
+		return out;
+	});
+	const known = $derived(groups.some((g) => g.items.some((i) => i.value === String(value ?? ''))));
 	const num = (s: string) => (s.trim() === '' ? '' : Number.isFinite(Number(s)) ? Number(s) : s);
 </script>
 
@@ -34,8 +47,17 @@
 	</label>
 {:else if field.kind === 'choice'}
 	<select {id} class="geui-input" value={String(value ?? '')} disabled={readonly} onchange={(e) => onchange(e.currentTarget.value)}>
-		{#each field.options ?? [] as o (o)}
-			<option value={o}>{o}</option>
+		{#if !known}
+			<option value={String(value ?? '')} disabled>{value ? String(value) : messages.choose}</option>
+		{/if}
+		{#each groups as g (g.group)}
+			{#if g.group}
+				<optgroup label={g.group}>
+					{#each g.items as o (o.value)}<option value={o.value}>{o.label}</option>{/each}
+				</optgroup>
+			{:else}
+				{#each g.items as o (o.value)}<option value={o.value}>{o.label}</option>{/each}
+			{/if}
 		{/each}
 	</select>
 {:else if field.kind === 'num'}

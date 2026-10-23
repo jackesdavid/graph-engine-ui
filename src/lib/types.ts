@@ -20,9 +20,14 @@ export type CatalogField = {
 	required: boolean;
 	kind: 'text' | 'long_text' | 'num' | 'bool' | 'choice' | 'rows';
 	options?: string[];
+	/** For `choice`: the options by the words a person reads, optionally grouped. */
+	choices?: CatalogChoice[];
 	/** For `rows`: the columns of each row. */
 	fields?: CatalogField[];
 };
+
+/** One option of a `choice` field: `value` is stored, `label` is shown, `group` heads a section. */
+export type CatalogChoice = { value: string; label: string; group?: string };
 
 export type CatalogKind = {
 	slug: string;
@@ -68,7 +73,12 @@ export type GraphDoc = {
 };
 
 /** Ports a configured node actually has, as the product's server resolves them. */
-export type ResolvedPorts = { inputs: CatalogPort[]; outputs: CatalogPort[] };
+export type ResolvedPorts = {
+	inputs: CatalogPort[];
+	outputs: CatalogPort[];
+	/** The settings this configuration has, when they depend on it (a second dropdown appears). */
+	fields?: CatalogField[];
+};
 
 /** What is running right now, to light the canvas up. */
 export type LiveState = {
@@ -109,6 +119,8 @@ export type Messages = {
 	close: string;
 	/** "<node> added". */
 	added: string;
+	/** The empty entry of a dropdown nothing was chosen in yet. */
+	choose: string;
 };
 
 export const ENGLISH: Messages = {
@@ -137,7 +149,8 @@ export const ENGLISH: Messages = {
 	yes: 'Yes',
 	no: 'No',
 	close: 'Close',
-	added: 'added'
+	added: 'added',
+	choose: 'Choose…'
 };
 
 export type Tool = 'move' | 'pan' | 'link' | 'cut';
