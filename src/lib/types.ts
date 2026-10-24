@@ -121,6 +121,24 @@ export type Messages = {
 	added: string;
 	/** The empty entry of a dropdown nothing was chosen in yet. */
 	choose: string;
+	/** The add-node menu's title when it will wire the new node to the chosen output. */
+	connectTo: string;
+	/** The hint at the bottom of the canvas when nothing is going on. */
+	wireHint: string;
+	/** "Wiring from <node>.<port>". */
+	wiringFrom: string;
+	cancel: string;
+	/** "<n> selected". */
+	selected: string;
+	duplicate: string;
+	deleteSelection: string;
+	whatIsThis: string;
+	showPanel: string;
+	hidePanel: string;
+	resizePanel: string;
+	/** Give the canvas the whole window, and back. */
+	focusCanvas: string;
+	unfocusCanvas: string;
 };
 
 export const ENGLISH: Messages = {
@@ -150,7 +168,20 @@ export const ENGLISH: Messages = {
 	no: 'No',
 	close: 'Close',
 	added: 'added',
-	choose: 'Choose…'
+	choose: 'Choose…',
+	connectTo: 'Connect to…',
+	wireHint: 'Tap an output ●, then an input ○ to wire · tap a wired input to unwire',
+	wiringFrom: 'Wiring from',
+	cancel: 'cancel',
+	selected: 'selected',
+	duplicate: 'Duplicate (⌘D)',
+	deleteSelection: 'Delete (⌫)',
+	whatIsThis: 'What is this node for?',
+	showPanel: 'Show panel',
+	hidePanel: 'Hide panel',
+	resizePanel: 'Drag to resize the panel',
+	focusCanvas: 'Hide the panels',
+	unfocusCanvas: 'Show the panels'
 };
 
 export type Tool = 'move' | 'pan' | 'link' | 'cut';

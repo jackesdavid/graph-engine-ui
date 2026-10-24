@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { addNode, compatible, connect, disconnect, edgeKey, removeNodes, unfilled } from './graph.js';
-import { fitBoxes, nodeHeight, portY, wirePath, zoomAround, HEAD_H, ROW_H } from './geometry.js';
+import { addNode, compatible, connect, disconnect, duplicateNodes, edgeKey, removeNodes, unfilled } from './graph.js';
+import { fitBoxes, fitWidth, nodeHeight, portY, wirePath, zoomAround, HEAD_H, NODE_W, NODE_W_FIT_MAX, ROW_H } from './geometry.js';
 import type { CatalogKind, GraphDoc } from './types.js';
 
 const kind = (slug: string, inputs: [string, string, boolean?][], outputs: [string, string][]): CatalogKind => ({
@@ -17,6 +17,16 @@ const trigger = kind('on_command', [], [['exec_out', 'exec'], ['message', 'text'
 const empty: GraphDoc = { nodes: [], edges: [] };
 
 describe('graph operations', () => {
+	it('duplicates a selection with the wires inside it, not the ones leaving it', () => {
+		let g = addNode(addNode(addNode(empty, trigger, { x: 0, y: 0 }).graph, reply, { x: 300, y: 0 }).graph, reply, { x: 600, y: 0 }).graph;
+		g = { ...g, edges: [{ from: 1, from_port: 'exec_out', to: 2, to_port: 'exec_in' }, { from: 2, from_port: 'exec_out', to: 3, to_port: 'exec_in' }] };
+		const d = duplicateNodes(g, new Set([1, 2]));
+		expect(d.ids).toEqual([4, 5]);
+		expect(d.graph.nodes.slice(3).map((n) => [n.kind, n.x, n.y])).toEqual([['on_command', 48, 48], ['reply', 348, 48]]);
+		expect(d.graph.edges.slice(2)).toEqual([{ from: 4, from_port: 'exec_out', to: 5, to_port: 'exec_in' }]);
+		expect(d.graph.next_id).toBe(6);
+	});
+
 	it('adds nodes with fresh ids and their default config', () => {
 		const a = addNode(empty, trigger, { x: 10.4, y: 20 });
 		const b = addNode(a.graph, reply, { x: 300, y: 20 });
@@ -89,5 +99,14 @@ describe('geometry', () => {
 		const f = fitBoxes([{ x: 0, y: 0, w: 100, h: 100 }], 400, 400);
 		expect(f.zoom).toBeLessThanOrEqual(1.5);
 		expect(wirePath({ x: 0, y: 0 }, { x: 100, y: 0 })).toMatch(/^M 0 0 C/);
+	});
+});
+
+describe('node width', () => {
+	it('fits the title, or both columns of port names side by side, within bounds', () => {
+		expect(fitWidth(40, 30, 30)).toBe(NODE_W);
+		expect(fitWidth(250, 0, 0)).toBe(32 + 250 + 14);
+		expect(fitWidth(60, 120, 110)).toBe(12 + 120 + 24 + 110 + 12);
+		expect(fitWidth(900, 0, 0)).toBe(NODE_W_FIT_MAX);
 	});
 });

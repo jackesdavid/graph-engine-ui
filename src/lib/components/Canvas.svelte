@@ -14,8 +14,8 @@
 		execIn,
 		execOut,
 		fitBoxes,
+		fitWidth,
 		nodeHeight,
-		nodeWidth,
 		portY,
 		wirePath,
 		zoomAround,
@@ -23,21 +23,31 @@
 		type Viewport
 	} from '../geometry.js';
 	import { portColor } from '../colors.js';
+	import type { IconName } from '../icons.js';
+	import Icon from './Icon.svelte';
 
 	type Props = {
 		graph: GraphDoc;
 		portsOf: (n: GraphNode) => Ports;
 		titleOf: (n: GraphNode) => string;
 		colorOf: (n: GraphNode) => string;
+		/** The glyph in the node's header. */
+		iconOf?: (n: GraphNode) => IconName;
+		/** Events and triggers wear a stronger header so a chain's start pops. */
+		strongOf?: (n: GraphNode) => boolean;
 		labelOfPort?: (n: GraphNode, p: CatalogPort) => string;
 		selected: Set<number>;
 		tool: Tool;
+		/** The output a wire is being drawn from, until an input is tapped. */
+		pending?: { node: number; port: string } | null;
 		live?: LiveState;
 		readonly?: boolean;
 		messages: Messages;
 		onnotice?: (message: string) => void;
 		/** A node was tapped (pressed and released without moving): show its settings. */
 		ontapnode?: (id: number) => void;
+		/** A wire was let go on the empty canvas: offer the kinds it could feed, there. */
+		onwiredrop?: (from: { node: number; port: string; type: string }, at: Point, screen: Point) => void;
 	};
 
 	let {
@@ -45,17 +55,36 @@
 		portsOf,
 		titleOf,
 		colorOf,
+		iconOf = () => 'box',
+		strongOf = () => false,
 		labelOfPort = (_n, p) => p.name,
 		selected = $bindable(),
 		tool = $bindable(),
+		pending = $bindable(null),
 		live = {},
 		readonly = false,
 		messages,
 		onnotice = () => {},
-		ontapnode = () => {}
+		ontapnode = () => {},
+		onwiredrop
 	}: Props = $props();
 
 	let svg: SVGSVGElement | undefined = $state();
+	let font = $state('');
+	$effect(() => {
+		if (svg) font = getComputedStyle(svg).fontFamily;
+	});
+
+	// Text is measured in the font the canvas really uses, so a title or a port name never runs
+	// past its node. Where there is no canvas to measure with (tests), a fair estimate.
+	let pen: CanvasRenderingContext2D | null | undefined;
+	function measure(text: string, px: number, weight: number): number {
+		if (pen === undefined) pen = typeof document !== 'undefined' && !/jsdom/.test(navigator.userAgent) ? document.createElement('canvas').getContext('2d') : null;
+		if (!pen) return text.length * px * (weight > 500 ? 0.62 : 0.56);
+		pen.font = `${weight} ${px}px ${font || 'sans-serif'}`;
+		return pen.measureText(text).width;
+	}
+	const widest = (labels: string[], px: number) => labels.reduce((m, t) => Math.max(m, measure(t, px, 400)), 0);
 	let view = $state<Viewport>(graph.viewport ?? { x: 40, y: 40, zoom: 1 });
 
 	// Gesture state. `pointers` tracks every finger so a second one turns any gesture into a pinch.
@@ -66,7 +95,6 @@
 	let panning: { sx: number; sy: number; view: Viewport } | null = null;
 	let viaDrag: { key: string; idx: number } | null = null;
 	let marquee = $state<{ a: Point; b: Point } | null>(null);
-	let pending = $state<{ node: number; port: string } | null>(null);
 	let cursor = $state<Point>({ x: 0, y: 0 });
 	let hoverEdge = $state<string | null>(null);
 	// A press on a node that ends where it began, without a second finger, is a tap.
@@ -77,13 +105,20 @@
 	const failed = $derived(new Set(live.failed ?? []));
 	const done = $derived(new Set(live.done ?? []));
 
-	type Laid = { n: GraphNode; p: Ports; w: number; h: number; title: string; color: string; missing: CatalogPort[] };
+	type Laid = { n: GraphNode; p: Ports; w: number; h: number; title: string; color: string; icon: IconName; strong: boolean; missing: CatalogPort[] };
 	const laid = $derived(
 		new Map(
 			graph.nodes.map((n): [number, Laid] => {
 				const p = portsOf(n);
 				const title = titleOf(n);
-				return [n.id, { n, p, w: nodeWidth(title), h: nodeHeight(p), title, color: colorOf(n), missing: unfilled(graph, n, p.inputs) }];
+				const ins = dataIn(p).map((x) => labelOfPort(n, x) + (x.required ? '*' : ''));
+				const arms = execOut(p).length > 1 ? execOut(p).map((x) => labelOfPort(n, x)) : [];
+				const outs = [...arms, ...dataOut(p).map((x) => labelOfPort(n, x))];
+				const w = fitWidth(measure(title, 11, 600), widest(ins, 10), widest(outs, 10));
+				return [
+					n.id,
+					{ n, p, w, h: nodeHeight(p), title, color: colorOf(n), icon: iconOf(n), strong: strongOf(n), missing: unfilled(graph, n, p.inputs) }
+				];
 			})
 		)
 	);
@@ -176,6 +211,9 @@
 
 	function canvasDown(e: PointerEvent) {
 		if (pending) {
+			const from = laid.get(pending.node)?.p.outputs.find((p) => p.name === pending!.port);
+			const r = svg!.getBoundingClientRect();
+			if (onwiredrop && from) onwiredrop({ ...pending, type: from.type }, world(e), { x: e.clientX - r.left, y: e.clientY - r.top });
 			pending = null;
 			return;
 		}
@@ -375,8 +413,8 @@
 		};
 	}
 
-	// A finger needs a bigger target than the 12px dot it sees (28px across: rows are 24px apart).
-	const HIT_R = 14;
+	// A finger needs a bigger target than the 12px dot it sees (24px across: rows are 22px apart).
+	const HIT_R = 12;
 
 	const cursorClass = $derived(panning ? 'grabbing' : tool === 'link' || tool === 'cut' ? 'crosshair' : 'grab');
 </script>
@@ -385,7 +423,7 @@
 	bind:this={svg}
 	use:wheel
 	class="geui-canvas {cursorClass}"
-	style="background-position: {view.x}px {view.y}px; background-size: {20 * view.zoom}px {20 * view.zoom}px;"
+	style="background-image: radial-gradient(circle at center, var(--geui-grid-strong, rgba(0, 0, 0, 0.24)) {Math.max(1, 1.6 * view.zoom)}px, transparent 0), radial-gradient(circle at center, var(--geui-grid-weak, rgba(0, 0, 0, 0.11)) {Math.max(0.5, view.zoom)}px, transparent 0); background-size: {90 * view.zoom}px {90 * view.zoom}px, {18 * view.zoom}px {18 * view.zoom}px; background-position: {view.x}px {view.y}px, {view.x}px {view.y}px;"
 	onpointerdown={canvasDown}
 	onpointermove={canvasMove}
 	onpointerup={canvasUp}
@@ -394,8 +432,12 @@
 	aria-label="canvas"
 >
 	<defs>
+		<!-- Resting elevation: cards float above the canvas. Selected or running: a halo. -->
 		<filter id="geui-shadow" x="-30%" y="-30%" width="160%" height="160%">
-			<feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="rgba(0,0,0,0.12)" />
+			<feDropShadow dx="0" dy="2" stdDeviation="4" style="flood-color: var(--geui-node-shadow, rgba(0, 0, 0, 0.12))" />
+		</filter>
+		<filter id="geui-glow" x="-40%" y="-40%" width="180%" height="180%">
+			<feDropShadow dx="0" dy="0" stdDeviation="5" style="flood-color: var(--geui-node-glow, var(--primary, #d6336c))" flood-opacity="0.5" />
 		</filter>
 	</defs>
 	<g transform="translate({view.x} {view.y}) scale({view.zoom})">
@@ -460,17 +502,29 @@
 			{@const sel = selected.has(n.id)}
 			{@const run = running.has(n.id)}
 			{@const bad = failed.has(n.id)}
-			<g transform="translate({n.x} {n.y})" filter="url(#geui-shadow)" class="geui-node" class:sel class:run class:bad>
-				<rect width={l.w} height={l.h} rx="9" class="geui-body" onpointerdown={(e) => nodeDown(e, n)} role="presentation" />
-				<path d="M0 9 a9 9 0 0 1 9 -9 h{l.w - 18} a9 9 0 0 1 9 9 v{HEAD_H - 9} h-{l.w} z" fill={l.color} fill-opacity="0.18" class="geui-inert" />
+			<g
+				transform="translate({n.x} {n.y})"
+				filter={sel || run ? 'url(#geui-glow)' : 'url(#geui-shadow)'}
+				class="geui-node"
+				class:sel
+				class:run
+				class:bad
+				class:missing={l.missing.length > 0}
+			>
+				<rect width={l.w} height={l.h} rx="8" class="geui-body" onpointerdown={(e) => nodeDown(e, n)} role="presentation" />
+				<!-- The header band, tinted by family; events and triggers are stronger. -->
+				<path d="M0 8 a8 8 0 0 1 8 -8 h{l.w - 16} a8 8 0 0 1 8 8 v{HEAD_H - 8} h-{l.w} z" fill={l.color} fill-opacity={l.strong ? 0.32 : 0.18} class="geui-inert" />
 				<line x1="0" y1={HEAD_H} x2={l.w} y2={HEAD_H} stroke={l.color} stroke-opacity="0.55" stroke-width="1.5" class="geui-inert" />
-				<circle cx="14" cy={HEAD_H / 2} r="4.5" fill={l.color} class="geui-inert" />
-				<text x="26" y={HEAD_H / 2 + 4} class="geui-title geui-inert">{l.title}</text>
+				<g style="color: {l.color}" class="geui-inert">
+					<Icon name={l.icon} size={15} stroke={2.25} inside={{ x: 10, y: HEAD_H / 2 - 7.5 }} />
+				</g>
+				<text x="32" y="17" class="geui-title geui-inert">{l.title}</text>
 				{#if run}
-					<rect width={l.w} height={l.h} rx="9" class="geui-running geui-inert" />
+					<rect width={l.w} height={l.h} rx="8" class="geui-running geui-inert" />
 				{/if}
 				{#if l.missing.length}
-					<circle cx={l.w - 10} cy="10" r="3.5" class="geui-missing">
+					<circle cx={l.w - 9} cy="9" r="5.5" class="geui-missing-halo geui-inert" />
+					<circle cx={l.w - 9} cy="9" r="3" class="geui-missing">
 						<title>{messages.required}: {l.missing.map((p) => labelOfPort(n, p)).join(', ')}</title>
 					</circle>
 				{/if}
@@ -534,8 +588,7 @@
 		height: 100%;
 		touch-action: none;
 		user-select: none;
-		background-color: var(--geui-canvas, var(--muted, #f4f4f5));
-		background-image: radial-gradient(circle at center, var(--geui-grid, rgba(0, 0, 0, 0.12)) 1px, transparent 0);
+		background-color: var(--geui-canvas, var(--muted, #ededed));
 	}
 	.grab {
 		cursor: grab;
@@ -580,13 +633,23 @@
 		stroke-width: 1.5;
 		cursor: grab;
 	}
+	/* The node body is a panel raised off the recessed canvas. */
 	.geui-body {
-		fill: var(--card, #fff);
+		fill: var(--geui-node-body, var(--card, #fff));
 		stroke: var(--border, #e4e4e7);
 		stroke-width: 1;
 		cursor: move;
+		transition: stroke 0.15s;
 	}
-	.geui-node.sel .geui-body {
+	.geui-body:hover {
+		stroke: color-mix(in oklab, var(--primary, #d6336c) 50%, transparent);
+	}
+	.geui-node.missing .geui-body {
+		stroke: color-mix(in oklab, var(--destructive, #e11d48) 70%, transparent);
+		stroke-width: 2;
+	}
+	.geui-node.sel .geui-body,
+	.geui-node.run .geui-body {
 		stroke: var(--primary, #d6336c);
 		stroke-width: 2;
 	}
@@ -606,12 +669,27 @@
 			stroke-dashoffset: -14;
 		}
 	}
+	/* Longhands: \`inherit\` is not allowed inside the \`font\` shorthand, which would drop the rule. */
 	.geui-title {
-		font: 600 12px var(--geui-font, inherit);
+		font-family: var(--geui-font, inherit);
+		font-size: 11px;
+		font-weight: 600;
 		fill: var(--foreground, #18181b);
 	}
 	.geui-port {
 		stroke-width: 2;
+		transform-box: fill-box;
+		transform-origin: center;
+		transition:
+			transform 0.12s ease-out,
+			filter 0.12s ease-out;
+	}
+	/* Tactile ports: the dot under a pointer grows a little, so pins feel pressable. */
+	@media (prefers-reduced-motion: no-preference) {
+		.geui-hit:hover + .geui-port {
+			transform: scale(1.28);
+			filter: drop-shadow(0 0 3px currentColor);
+		}
 	}
 	.geui-hit {
 		fill: transparent;
@@ -619,13 +697,14 @@
 	}
 	.geui-port.exec {
 		fill: var(--geui-port-empty, var(--background, #fff));
-		stroke: var(--geui-exec, #a1a1aa);
+		stroke: var(--geui-exec, #6b6b6b);
 	}
 	.geui-port.exec.filled {
-		fill: var(--geui-exec, #a1a1aa);
+		fill: var(--geui-exec, #6b6b6b);
 	}
 	.geui-port-label {
-		font: 10.5px var(--geui-font, inherit);
+		font-family: var(--geui-font, inherit);
+		font-size: 10px;
 		fill: var(--muted-foreground, #71717a);
 	}
 	.geui-port-label.missing {
@@ -633,5 +712,8 @@
 	}
 	.geui-missing {
 		fill: var(--destructive, #e11d48);
+	}
+	.geui-missing-halo {
+		fill: color-mix(in oklab, var(--destructive, #e11d48) 20%, transparent);
 	}
 </style>

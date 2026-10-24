@@ -3,10 +3,10 @@
 
 import type { CatalogPort, GraphNode, Point } from './types.js';
 
-export const NODE_W = 184;
+export const NODE_W = 176;
 export const NODE_W_MAX = 320;
-export const HEAD_H = 28;
-export const ROW_H = 24;
+export const HEAD_H = 26;
+export const ROW_H = 22;
 export const PAD = 8;
 export const PORT_R = 6;
 
@@ -20,8 +20,17 @@ export const execOut = (p: Ports) => p.outputs.filter(isExec);
 
 /** A node grows with its title so long labels are not clipped. */
 export function nodeWidth(title: string): number {
-	return Math.min(NODE_W_MAX, Math.max(NODE_W, 48 + Math.ceil(title.length * 6.8)));
+	// 32 for the glyph and its gap, the text, ~14 of right padding.
+	return Math.min(NODE_W_MAX, Math.max(NODE_W, 46 + Math.ceil(title.length * 6.6)));
 }
+
+/** A node as wide as what it says: its title (after the glyph), and its input labels and output
+ *  labels side by side with room between them. Widths are measured text, in pixels. */
+export function fitWidth(title: number, inputs: number, outputs: number): number {
+	const w = Math.max(32 + title + 14, 12 + inputs + (inputs && outputs ? 24 : 0) + outputs + 12);
+	return Math.min(NODE_W_FIT_MAX, Math.max(NODE_W, Math.ceil(w)));
+}
+export const NODE_W_FIT_MAX = 420;
 
 /** Rows below the header: data inputs on the left; on the right, exec arms (when there are
  *  several, they live in the body) followed by data outputs. */

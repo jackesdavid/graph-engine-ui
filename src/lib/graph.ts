@@ -75,3 +75,20 @@ export function unfilled(g: GraphDoc, n: GraphNode, inputs: CatalogPort[]): Cata
 export function wiredInto(g: GraphDoc, node: number, port: string): GraphEdge | undefined {
 	return g.edges.find((e) => e.to === node && e.to_port === port);
 }
+
+/** Copies of `ids`, `offset` down and right, with the wires between them; the copies' ids. */
+export function duplicateNodes(g: GraphDoc, ids: Set<number>, offset = 48): { graph: GraphDoc; ids: number[] } {
+	let next = nextId(g);
+	const map = new Map<number, number>();
+	const copies: GraphNode[] = [];
+	for (const n of g.nodes) {
+		if (!ids.has(n.id)) continue;
+		map.set(n.id, next);
+		copies.push({ ...n, id: next, x: n.x + offset, y: n.y + offset, config: JSON.parse(JSON.stringify(n.config)) });
+		next += 1;
+	}
+	const edges = g.edges
+		.filter((e) => map.has(e.from) && map.has(e.to))
+		.map((e) => ({ ...e, from: map.get(e.from)!, to: map.get(e.to)! }));
+	return { graph: { ...g, nodes: [...g.nodes, ...copies], edges: [...g.edges, ...edges], next_id: next }, ids: [...map.values()] };
+}

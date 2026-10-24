@@ -98,4 +98,54 @@ describe('FlowEditor', () => {
 		expect(form.value).toBe('');
 		expect(screen.getByRole('option', { name: 'Pay a bill' })).toBeTruthy();
 	});
+
+	it('lets a wire go on the empty canvas: the menu offers what it can feed, and the new node arrives wired', async () => {
+		const kinds: Catalog = {
+			kinds: [
+				{
+					slug: 'on_command',
+					label: 'When a form is sent',
+					category: 'Triggers',
+					inputs: [],
+					outputs: [{ name: 'exec_out', type: 'exec', required: false }],
+					default_config: {}
+				},
+				...catalog.kinds
+			]
+		};
+		const graph: GraphDoc = { nodes: [{ id: 1, kind: 'on_command', x: 0, y: 0, config: {} }], edges: [] };
+		const changes: GraphDoc[] = [];
+		render(FlowEditor, { props: { graph, catalog: kinds, onchange: (g: GraphDoc) => changes.push(g) } });
+
+		const out = [...document.querySelectorAll('.geui-hit')].at(-1)!;
+		await fireEvent.pointerDown(out, { pointerId: 1, clientX: 180, clientY: 13 });
+		flushSync();
+		expect(screen.getByText(/Wiring from #1.exec_out/)).toBeTruthy();
+		await fireEvent.pointerDown(document.querySelector('.geui-canvas')!, { pointerId: 2, clientX: 300, clientY: 40 });
+		flushSync();
+
+		expect(screen.getByRole('dialog', { name: 'Connect to…' })).toBeTruthy();
+		await fireEvent.click(screen.getByRole('button', { name: /Reply to the form/ }));
+		flushSync();
+		const last = changes.at(-1)!;
+		expect(last.nodes.map((n) => n.kind)).toEqual(['on_command', 'reply']);
+		expect(last.edges).toEqual([{ from: 1, from_port: 'exec_out', to: 2, to_port: 'exec_in' }]);
+	});
+
+	it('duplicates and deletes the selection from the bar at the bottom', async () => {
+		const graph: GraphDoc = { nodes: [{ id: 1, kind: 'reply', x: 0, y: 0, config: { status: 'ok' } }], edges: [] };
+		const changes: GraphDoc[] = [];
+		render(FlowEditor, { props: { graph, catalog, onchange: (g: GraphDoc) => changes.push(g) } });
+		await fireEvent.pointerDown(document.querySelector('.geui-body')!, { pointerId: 1, clientX: 10, clientY: 10 });
+		await fireEvent.pointerUp(document.querySelector('.geui-canvas')!, { pointerId: 1, clientX: 10, clientY: 10 });
+		flushSync();
+		expect(screen.getByText('1 selected')).toBeTruthy();
+
+		await fireEvent.click(screen.getByRole('button', { name: /Duplicate/ }));
+		flushSync();
+		expect(changes.at(-1)!.nodes.map((n) => n.id)).toEqual([1, 2]);
+		await fireEvent.click(screen.getByRole('button', { name: /Delete \(/ }));
+		flushSync();
+		expect(changes.at(-1)!.nodes.map((n) => n.id)).toEqual([1]);
+	});
 });

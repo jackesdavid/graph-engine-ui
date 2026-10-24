@@ -90,18 +90,34 @@
 <style>
 	.geui-input {
 		width: 100%;
-		min-height: 44px;
+		max-width: 100%;
+		min-height: 2rem;
 		box-sizing: border-box;
-		padding: 0.5rem 0.75rem;
+		padding: 0.25rem 0.625rem;
 		border: 1px solid var(--input, #e4e4e7);
-		border-radius: calc(var(--radius, 0.625rem) * 0.8);
-		background: var(--background, #fff);
+		border-radius: 0.5rem;
+		background: var(--geui-input-bg, var(--background, #fff));
 		color: var(--foreground, #18181b);
 		font: inherit;
+		font-size: 0.8125rem;
 	}
 	textarea.geui-input {
-		min-height: 88px;
+		min-height: 80px;
+		padding: 0.5rem 0.625rem;
 		resize: vertical;
+	}
+	/* A finger needs 44px; inputs under 16px make iOS zoom the page. */
+	@media (pointer: coarse) {
+		.geui-input {
+			min-height: 44px;
+			font-size: 16px;
+		}
+		.geui-check {
+			min-height: 44px;
+		}
+		.geui-button {
+			min-height: 44px;
+		}
 	}
 	.geui-input:focus {
 		outline: 2px solid var(--ring, #d6336c);
@@ -111,34 +127,38 @@
 		display: flex;
 		align-items: center;
 		gap: 0.5rem;
-		min-height: 44px;
+		min-height: 2rem;
+		font-size: 0.75rem;
+		color: var(--muted-foreground, #71717a);
 	}
 	.geui-check input {
-		width: 20px;
-		height: 20px;
+		width: 18px;
+		height: 18px;
 		accent-color: var(--primary, #d6336c);
 	}
 	.geui-rows {
 		display: grid;
-		gap: 0.75rem;
+		gap: 0.5rem;
 	}
 	.geui-row {
 		display: grid;
 		gap: 0.5rem;
-		padding: 0.75rem;
+		padding: 0.625rem;
 		border: 1px solid var(--border, #e4e4e7);
-		border-radius: var(--radius, 0.625rem);
+		border-radius: 0.5rem;
+		background: var(--muted, #f4f4f5);
 	}
 	.geui-cell {
 		display: grid;
 		gap: 0.25rem;
-		font-size: 0.8rem;
+		font-size: 0.7rem;
 		color: var(--muted-foreground, #71717a);
 	}
 	.geui-button {
-		min-height: 44px;
+		min-height: 2rem;
 		border: 1px dashed var(--border, #e4e4e7);
-		border-radius: var(--radius, 0.625rem);
+		border-radius: 0.5rem;
+		font-size: 0.75rem;
 		background: transparent;
 		color: var(--foreground, #18181b);
 		font: inherit;
